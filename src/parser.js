@@ -1,5 +1,169 @@
 const OPTION_ASSET = "Equity and Index Options";
 
+const SECTION_ALIASES = Object.freeze({
+  "账户信息": "Account Information",
+  "帐户信息": "Account Information",
+  "净资产值": "Net Asset Value",
+  "净资产价值": "Net Asset Value",
+  "净资产值变更": "Change in NAV",
+  "按市值计算的表现总结": "Mark-to-Market Performance Summary",
+  "已实现和未实现的表现总结": "Realized & Unrealized Performance Summary",
+  "现金报告": "Cash Report",
+  "未平仓持仓": "Open Positions",
+  "交易": "Trades",
+  "存款和取款": "Deposits & Withdrawals",
+  "费用": "Fees",
+  "股息": "Dividends",
+  "代扣税": "Withholding Tax",
+  "利息": "Interest",
+  "应计利息": "Interest Accruals",
+  "应计股息的变化": "Change in Dividend Accruals",
+  "金融产品信息": "Financial Instrument Information",
+  "代码": "Codes",
+  "注释/法律注释": "Notes/Legal Notes",
+  "账单期间的总损益": "Total P/L for Statement Period"
+});
+
+const ROW_TYPE_ALIASES = Object.freeze({
+  "标题": "Header",
+  "表头": "Header",
+  "数据": "Data",
+  "资料": "Data",
+  "明细": "Data"
+});
+
+const HEADER_ALIASES = Object.freeze({
+  "域名称": "Field Name",
+  "域值": "Field Value",
+  "资产类型": "Asset Class",
+  "之前合计": "Prior Total",
+  "当前多头": "Current Long",
+  "当前空头": "Current Short",
+  "当前合计": "Current Total",
+  "变更": "Change",
+  "时间加权的收益率": "Time Weighted Rate of Return",
+  "资产分类": "Asset Category",
+  "先前 数量": "Prior Quantity",
+  "当前 数量": "Current Quantity",
+  "先前 价格": "Prior Price",
+  "当前 价格": "Current Price",
+  "按市值计盈亏 持仓": "Mark-to-Market P/L Position",
+  "按市值计盈亏 交易": "Mark-to-Market P/L Transaction",
+  "按市值计盈亏 佣金": "Mark-to-Market P/L Commissions",
+  "按市值计盈亏 其它": "Mark-to-Market P/L Other",
+  "按市值计盈亏 总数": "Mark-to-Market P/L Total",
+  "费用调整": "Cost Adj.",
+  "已实现的 短期利润": "Realized S/T Profit",
+  "已实现的 短期损失": "Realized S/T Loss",
+  "已实现的 长期利润": "Realized L/T Profit",
+  "已实现的 长期损失": "Realized L/T Loss",
+  "已实现的 总数": "Realized Total",
+  "未实现的 短期利润": "Unrealized S/T Profit",
+  "未实现的 短期损失": "Unrealized S/T Loss",
+  "未实现的 长期利润": "Unrealized L/T Profit",
+  "未实现的 长期损失": "Unrealized L/T Loss",
+  "未实现的 总数": "Unrealized Total",
+  "货币总结": "Currency Summary",
+  "货币": "Currency",
+  "总数": "Total",
+  "证券": "Securities",
+  "期货": "Futures",
+  "数量": "Quantity",
+  "合约乘数": "Mult",
+  "成本价格": "Cost Price",
+  "成本基础": "Cost Basis",
+  "收盘价格": "Close Price",
+  "价值": "Value",
+  "未实现的损益": "Unrealized P/L",
+  "日期/时间": "Date/Time",
+  "交易价格": "T. Price",
+  "收益": "Proceeds",
+  "佣金/税": "Comm/Fee",
+  "基础": "Basis",
+  "已实现的损益": "Realized P/L",
+  "按市值计算的损益": "MTM P/L",
+  "佣金 USD": "Comm in USD",
+  "以市值计（MTM） USD": "MTM in USD",
+  "结算日期": "Settle Date",
+  "描述": "Description",
+  "金额": "Amount",
+  "日期": "Date",
+  "除息日": "Ex Date",
+  "支付日期": "Pay Date",
+  "税": "Tax",
+  "费用": "Fee",
+  "总股息率": "Gross Rate",
+  "总额": "Gross Amount",
+  "净额": "Net Amount",
+  "合约编号": "Conid",
+  "证券号码": "Security ID",
+  "底层": "Underlying",
+  "上市交易所": "Listing Exch",
+  "乘数": "Multiplier",
+  "类型": "Type",
+  "意思": "Meaning",
+  "代码 （继续）": "Code (Cont.)",
+  "意思 （继续）": "Meaning (Cont.)",
+  "注": "Note"
+});
+
+const FIELD_NAME_ALIASES = Object.freeze({
+  "名称": "Name",
+  "账户": "Account",
+  "账户类型": "Account Type",
+  "客户类型": "Customer Type",
+  "账户能力": "Account Capabilities",
+  "基础货币": "Base Currency",
+  "开始价值": "Starting Value",
+  "按市值计价": "Mark-to-Market",
+  "存款和取款": "Deposits & Withdrawals",
+  "股息": "Dividends",
+  "代扣税款": "Withholding Tax",
+  "利息": "Interest",
+  "其它费用": "Other Fees",
+  "佣金": "Commissions",
+  "结束价值": "Ending Value",
+  "期初应计余额": "Starting Accrual Balance",
+  "应计利息": "Interest Accrued",
+  "应计转回": "Accrual Reversal",
+  "期末应计余额": "Ending Accrual Balance",
+  "销售税": "Sales Tax",
+  "其它外汇换算": "Other FX Translations"
+});
+
+const ASSET_CATEGORY_ALIASES = Object.freeze({
+  "股票": "Stocks",
+  "股票和指数期权": OPTION_ASSET,
+  "期权": OPTION_ASSET,
+  "外汇": "Forex",
+  "总数": "Total",
+  "总计（全部资产）": "Total (All Assets)",
+  "支付和收到的经纪商利息": "Broker Interest Paid and Received",
+  "其它费用": "Other Fees",
+  "期初应计股息USD": "Starting Dividend Accruals in USD",
+  "期末应计股息USD": "Ending Dividend Accruals in USD"
+});
+
+const ASSET_CLASS_ALIASES = Object.freeze({
+  "现金": "Cash",
+  "股票": "Stock",
+  "总数": "Total"
+});
+
+const CURRENCY_ALIASES = Object.freeze({
+  "基础货币总结": "Base Currency Summary",
+  "总数": "Total",
+  "总数 USD": "Total in USD",
+  "总数 存款和取款 在 USD": "Total Deposits & Withdrawals in USD"
+});
+
+const VALUE_ALIASES = Object.freeze({
+  "Field Name": FIELD_NAME_ALIASES,
+  "Asset Category": ASSET_CATEGORY_ALIASES,
+  "Asset Class": ASSET_CLASS_ALIASES,
+  "Currency": CURRENCY_ALIASES
+});
+
 export function parseIbkrReport(csvText) {
   const sections = collectSections(csvText);
   const accountInfo = parseAccountInfo(sections);
@@ -65,14 +229,16 @@ function collectSections(csvText) {
 
     if (columns.length < 2) continue;
 
-    const sectionName = columns[0];
-    const rowType = columns[1];
+    const sectionName = normalizeSectionName(columns[0]);
+    const rowType = normalizeRowType(columns[1]);
 
     if (rowType === "Header") {
       if (currentBlock) blocks.push(currentBlock);
       currentBlock = {
         section: sectionName,
-        headers: columns,
+        headers: columns.map((header, index) =>
+          normalizeHeader(sectionName, header, index, columns.length)
+        ),
         rows: []
       };
       continue;
@@ -91,13 +257,36 @@ function collectSections(csvText) {
     for (const dataRow of block.rows) {
       const row = {};
       block.headers.forEach((header, index) => {
-        if (header) row[header] = (dataRow[index] ?? "").trim();
+        if (header) {
+          const value = (dataRow[index] ?? "").trim();
+          row[header] = normalizeValue(header, value);
+        }
       });
       sections[block.section].push(row);
     }
 
     return sections;
   }, {});
+}
+
+function normalizeSectionName(value) {
+  return SECTION_ALIASES[value] || value;
+}
+
+function normalizeRowType(value) {
+  return ROW_TYPE_ALIASES[value] || value;
+}
+
+function normalizeHeader(sectionName, value, index, columnCount) {
+  if (value === "代码") {
+    if (sectionName === "Codes" || index === columnCount - 1) return "Code";
+    return "Symbol";
+  }
+  return HEADER_ALIASES[value] || value;
+}
+
+function normalizeValue(header, value) {
+  return VALUE_ALIASES[header]?.[value] || value;
 }
 
 function splitCsvRows(text) {
