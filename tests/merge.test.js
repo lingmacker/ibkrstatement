@@ -15,7 +15,13 @@ test('sorts periods, combines flows and P/L, and uses only the latest snapshot',
   assert.equal(data.positions.length, 1);
   assert.equal(data.positions[0].baseValue, 200);
   assert.equal(data.positions[0].baseDividends, 3);
-  assert.deepEqual(data.plSummary.total, { realized: 30, unrealized: 200, total: 230 });
+  assert.deepEqual(data.plSummary.total, { realized: 30, unrealized: 200, total: 230,
+    grossRealizedProfit: 0, grossRealizedLoss: 0, realizedProfitLossRatio: null });
+  assert.equal(data.periodPerformance.startingValue, 1000);
+  assert.equal(data.periodPerformance.endingValue, 3000);
+  assert.equal(data.periodPerformance.netCashFlow, 1000);
+  assert.equal(data.periodPerformance.profitLoss, 1000);
+  near(data.periodPerformance.timeWeightedReturn, 4.5);
   assert.equal(data.navChange.find(row => row.key === 'startingValue').value, 1000);
   assert.equal(data.navChange.find(row => row.key === 'endingValue').value, 3000);
   assert.equal(data.navChange.find(row => row.key === 'depositsAndWithdrawals').value, 1000);
@@ -26,6 +32,28 @@ test('sorts periods, combines flows and P/L, and uses only the latest snapshot',
   assert.deepEqual(data.mergeInfo.sources.map(s => s.name), ['jan.csv', 'feb.csv']);
   assert.equal(data.sectionStats.Trades, 2);
   assert.doesNotMatch(JSON.stringify(data), /Statement,Header|Account Information,Data/);
+});
+
+test('merges reported period profits, cash flows and gross cost-basis metrics', () => {
+  const report = (csv, profit, grossProfit, grossLoss, cash) => csv +
+    `Total P/L for Statement Period,,,,${profit},\n` +
+    'Cash Report,Header,Currency Summary,Currency,Total\n' +
+    `Cash Report,Data,Deposits,Base Currency Summary,${cash}\n` +
+    'Cash Report,Data,Withdrawals,Base Currency Summary,-100\n' +
+    'Realized & Unrealized Performance Summary,Header,Asset Category,Realized Total,Unrealized Total,Total,Realized S/T Profit,Realized S/T Loss\n' +
+    `Realized & Unrealized Performance Summary,Data,Total (All Assets),${grossProfit - grossLoss},100,${grossProfit - grossLoss + 100},${grossProfit},-${grossLoss}\n`;
+  const first = report(january, 400, 30, 5, 600);
+  const second = report(february, 600, 50, 15, 500);
+  const data = parseIbkrReports([source(second), source(first)]);
+  assert.equal(data.periodPerformance.profitLoss, 1000);
+  assert.equal(data.periodPerformance.calculatedProfitLoss, 1100);
+  assert.equal(data.periodPerformance.deposits, 1100);
+  assert.equal(data.periodPerformance.withdrawals, 200);
+  assert.equal(data.periodPerformance.netCashFlow, 900);
+  assert.equal(data.plSummary.total.grossRealizedProfit, 80);
+  assert.equal(data.plSummary.total.grossRealizedLoss, 20);
+  assert.equal(data.plSummary.total.realizedProfitLossRatio, 4);
+  assert.equal(parseIbkrReports([source(first)]).periodPerformance.profitLoss, 400);
 });
 
 test('each period keeps its own FX conversion in trades, daily, monthly and income', () => {
@@ -84,8 +112,11 @@ test('gaps and missing TWR suppress compounded return while a real zero stays ze
   const gapped = parseIbkrReports([source(january), source(march)]);
   assert.equal(gapped.nav.rateOfReturn, null);
   assert.ok(gapped.warnings.includes('mergePeriodGaps'));
+  assert.equal(gapped.periodPerformance.profitLoss, 1000);
+  assert.equal(gapped.periodPerformance.timeWeightedReturn, null);
   const missing = parseIbkrReports([source(january), source(february.replace('Net Asset Value,Data,-5%', 'Net Asset Value,Data,--'))]);
   assert.equal(missing.nav.rateOfReturn, null);
+  assert.equal(missing.periodPerformance.timeWeightedReturn, null);
   assert.ok(missing.warnings.includes('mergeReturnUnavailable'));
   const zero = parseIbkrReports([source(january.replace('Data,10%', 'Data,0%')), source(february.replace('Data,-5%', 'Data,0%'))]);
   assert.equal(zero.nav.rateOfReturn, 0);
@@ -98,6 +129,9 @@ test('unknown P/L propagates, and latest empty holdings do not resurrect old pos
   assert.equal(data.plSummary.total.realized, null);
   assert.equal(data.plSummary.total.total, null);
   assert.equal(data.plSummary.total.unrealized, 200);
+  assert.equal(data.plSummary.total.grossRealizedProfit, null);
+  assert.equal(data.plSummary.total.grossRealizedLoss, null);
+  assert.equal(data.plSummary.total.realizedProfitLossRatio, null);
   assert.deepEqual(data.positions, []);
   assert.deepEqual(data.assetAllocation, []);
 });

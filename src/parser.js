@@ -25,6 +25,8 @@ const SECTION_ALIASES = new Map([
   ["外汇损益明细", "Forex P/L Details"],
   ["基础货币汇率", "Base Currency Exchange Rate"],
   ["基础货币兑换率", "Base Currency Exchange Rate"],
+  ["现金报告", "Cash Report"],
+  ["账单期间的总损益", "Total P/L for Statement Period"],
   ["股票收益提升计划证券出借赚取费用详情", "Stock Yield Enhancement Program Securities Lent Interest Details"]
 ]);
 
@@ -44,8 +46,13 @@ const HEADER_ALIASES = new Map([
   ["已实现的总数", "Realized Total"],
   ["未实现的 总数", "Unrealized Total"],
   ["未实现的总数", "Unrealized Total"],
+  ["已实现的 短期利润", "Realized S/T Profit"],
+  ["已实现的 短期损失", "Realized S/T Loss"],
+  ["已实现的 长期利润", "Realized L/T Profit"],
+  ["已实现的 长期损失", "Realized L/T Loss"],
   ["总数", "Total"],
   ["货币", "Currency"],
+  ["货币总结", "Currency Summary"],
   ["日期", "Date"],
   ["日期/时间", "Date/Time"],
   ["描述", "Description"],
@@ -137,6 +144,19 @@ export class ReportError extends Error {
   }
 }
 
+const CURRENCY_ALIASES = new Map([
+  ["基础货币总结", "Base Currency Summary"],
+  ["总数", "Total"],
+  ["合计", "Total"],
+  ["总数 USD", "Total in USD"],
+  ["总数 存款和取款 在 USD", "Total Deposits & Withdrawals in USD"]
+]);
+
+const CASH_ACTIVITY_ALIASES = new Map([
+  ["存款", "Deposits"],
+  ["取款", "Withdrawals"]
+]);
+
 function currencyCode(value, fallback = "USD") {
   const currency = String(value || fallback).trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) throw new ReportError("invalidCurrency");
@@ -153,10 +173,10 @@ function getRate(rates, currency) {
 
 export function parseIbkrReport(csvText) {
   const sections = collectSections(csvText);
-  return parseSections(sections);
+  return parseSections(sections, csvText);
 }
 
-function parseSections(sections) {
+function parseSections(sections, csvText) {
   const accountInfo = parseAccountInfo(sections);
   const exchangeRates = parseExchangeRates(sections, accountInfo.baseCurrency);
   const dividendIncome = parseDividendIncome(sections, exchangeRates);
@@ -175,6 +195,12 @@ function parseSections(sections) {
   const tickerPL = analyzeTickerPL(closedPositions);
   const nav = parseNetAssetValue(sections["Net Asset Value"], accountInfo.baseCurrency);
   const navChange = parseNavChange(sections["Change in NAV"]);
+  const periodPerformance = parsePeriodPerformance(
+    sections["Cash Report"],
+    navChange,
+    nav,
+    parseReportedPeriodProfitLoss(csvText)
+  );
   const assetAllocation = summarizePositions(positions, "assetCategory");
   const currencyExposure = summarizePositions(positions, "currency");
   const warnings = buildWarnings(sections, nav, positions, tradeSummary);
@@ -185,6 +211,7 @@ function parseSections(sections) {
     exchangeRates,
     nav,
     navChange,
+    periodPerformance,
     plSummary,
     dividendIncome,
     positions,
@@ -225,7 +252,7 @@ export function parseIbkrReports(sources) {
         continue;
       }
       fingerprints.add(fingerprint);
-      statements.push({ name, sections, data: parseSections(sections) });
+      statements.push({ name, sections, data: parseSections(sections, source.text) });
     } catch (error) {
       error.sourceName = name;
       throw error;
@@ -294,7 +321,12 @@ export function parseIbkrReports(sources) {
   const plSummary = Object.fromEntries(Object.keys(latest.data.plSummary).map(key => {
     const realized = sum(reports.map(report => report.plSummary[key].realized));
     const unrealized = latest.data.plSummary[key].unrealized;
-    return [key, { realized, unrealized, total: sum([realized, unrealized]) }];
+    const grossRealizedProfit = sum(reports.map(report => report.plSummary[key].grossRealizedProfit));
+    const grossRealizedLoss = sum(reports.map(report => report.plSummary[key].grossRealizedLoss));
+    return [key, { realized, unrealized, total: sum([realized, unrealized]),
+      grossRealizedProfit, grossRealizedLoss,
+      realizedProfitLossRatio: Number.isFinite(grossRealizedProfit) && grossRealizedLoss > 0
+        ? grossRealizedProfit / grossRealizedLoss : null }];
   }));
   const dividendIncome = { bySymbol: {}, bySymbolBase: {}, total: sum(reports.map(r => r.dividendIncome.total)) };
   for (const report of reports) {
@@ -327,6 +359,14 @@ export function parseIbkrReports(sources) {
     row.key === "startingValue" ? first.data.navChange.find(item => item.key === row.key).value :
       row.key === "endingValue" ? row.value : sum(reports.map(r => r.navChange.find(item => item.key === row.key).value))
   }));
+  const periodPerformance = {
+    startingValue: first.data.periodPerformance.startingValue,
+    endingValue: latest.data.periodPerformance.endingValue,
+    ...Object.fromEntries(["deposits", "withdrawals", "netCashFlow", "navChange", "calculatedProfitLoss", "profitLoss"]
+      .map(field => [field, sum(reports.map(report => report.periodPerformance[field]))])),
+    timeWeightedReturn: rateOfReturn,
+    source: "merged"
+  };
   const tradeFields = ["orderCount", "stockOrders", "optionOrders", "forexOrders", "totalCommissions", "optionPremium", "realizedPL"];
   const tradeDates = reports.flatMap(r => [r.tradeSummary.firstTradeDate, r.tradeSummary.lastTradeDate]).filter(Boolean).sort();
   const tradeSummary = {
@@ -339,7 +379,7 @@ export function parseIbkrReports(sources) {
   return {
     ...latest.data,
     accountInfo: { ...latest.data.accountInfo, period },
-    nav: { ...latest.data.nav, rateOfReturn }, navChange, plSummary, dividendIncome,
+    nav: { ...latest.data.nav, rateOfReturn }, navChange, periodPerformance, plSummary, dividendIncome,
     positions: applyPositionDividends(latest.data.positions, dividendIncome), closedPositions,
     tickerPL: analyzeTickerPL(closedPositions), tradeSummary,
     tradeDetails: reports.flatMap(r => r.tradeDetails).sort((a, b) => a.dateTime.localeCompare(b.dateTime)),
@@ -468,12 +508,27 @@ function normalizeCellValue(header, value) {
   if (header === "Field Name") return FIELD_NAME_ALIASES.get(clean) || clean;
   if (header === "Asset Category") return ASSET_CATEGORY_ALIASES.get(clean) || clean;
   if (header === "Asset Class") return ASSET_CLASS_ALIASES.get(clean) || clean;
-  if (header === "Currency" && (clean === "总数" || clean === "合计")) return "Total";
+  if (header === "Currency") return CURRENCY_ALIASES.get(clean) || clean;
+  if (header === "Currency Summary") return CASH_ACTIVITY_ALIASES.get(clean) || clean;
   if (header === "DataDiscriminator") {
     if (["订单", "交易", "成交"].includes(clean)) return "Order";
     if (["汇总", "摘要", "总结"].includes(clean)) return "Summary";
   }
   return clean;
+}
+
+function parseReportedPeriodProfitLoss(csvText) {
+  const rows = splitCsvRows(csvText).map(parseCsvLine);
+  for (const row of rows) {
+    const sectionName = normalizeSectionName(String(row[0] ?? "").trim().replace(/^\uFEFF/, ""));
+    if (sectionName !== "Total P/L for Statement Period") continue;
+
+    for (let index = row.length - 1; index > 0; index -= 1) {
+      const value = String(row[index] ?? "").trim();
+      if (value) return toNumber(value);
+    }
+  }
+  return null;
 }
 
 function splitCsvRows(text) {
@@ -632,6 +687,40 @@ function parseNavChange(rows = []) {
   }));
 }
 
+function parsePeriodPerformance(cashRows = [], navChange = [], nav = {}, reportedProfitLoss = null) {
+  const navFields = new Map(navChange.map((row) => [row.key, row.value]));
+  const baseCashRows = cashRows.filter((row) => row.Currency === "Base Currency Summary");
+  const deposits = sumCashActivity(baseCashRows, "Deposits");
+  const rawWithdrawals = sumCashActivity(baseCashRows, "Withdrawals");
+  const hasCashFlowBreakdown = baseCashRows.some((row) =>
+    row["Currency Summary"] === "Deposits" || row["Currency Summary"] === "Withdrawals"
+  );
+  const fallbackNetCashFlow = navFields.get("depositsAndWithdrawals") || 0;
+  const netCashFlow = hasCashFlowBreakdown ? deposits + rawWithdrawals : fallbackNetCashFlow;
+  const startingValue = navFields.get("startingValue") || 0;
+  const endingValue = navFields.get("endingValue") || nav.total || 0;
+  const calculatedProfitLoss = endingValue - startingValue - netCashFlow;
+
+  return {
+    startingValue,
+    endingValue,
+    deposits,
+    withdrawals: Math.abs(rawWithdrawals),
+    netCashFlow,
+    navChange: endingValue - startingValue,
+    calculatedProfitLoss,
+    profitLoss: reportedProfitLoss ?? calculatedProfitLoss,
+    timeWeightedReturn: nav.rateOfReturn || 0,
+    source: reportedProfitLoss === null ? "calculated" : "statement"
+  };
+}
+
+function sumCashActivity(rows, activity) {
+  return rows
+    .filter((row) => row["Currency Summary"] === activity)
+    .reduce((sum, row) => sum + toNumber(row.Total), 0);
+}
+
 function parsePlSummary(rows = [], trades = []) {
   const plSummary = {
     stocks: { realized: 0, unrealized: 0, total: 0 },
@@ -710,10 +799,19 @@ function latestCloseDateBySymbol(trades = []) {
 }
 
 function readPlNumbers(row) {
+  const grossRealizedProfit =
+    toNumber(row["Realized S/T Profit"]) + toNumber(row["Realized L/T Profit"]);
+  const grossRealizedLoss = Math.abs(
+    toNumber(row["Realized S/T Loss"]) + toNumber(row["Realized L/T Loss"])
+  );
+
   return {
     realized: toNumber(row["Realized Total"]),
     unrealized: toNumber(row["Unrealized Total"]),
-    total: toNumber(row.Total)
+    total: toNumber(row.Total),
+    grossRealizedProfit,
+    grossRealizedLoss,
+    realizedProfitLossRatio: grossRealizedLoss > 0 ? grossRealizedProfit / grossRealizedLoss : null
   };
 }
 

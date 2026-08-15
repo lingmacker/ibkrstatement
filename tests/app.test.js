@@ -26,7 +26,8 @@ function appHarness(language = 'en') {
     Image: class { set src(value) { this.onload(); } },
     parseIbkrReport, parseIbkrReports, isChineseIbkrReport, decodeReportFile, translate
   });
-  const source = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8').replace(/^import .+;\r?$/gm, '');
+  const appSource = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  const source = appSource.slice(appSource.indexOf('const app = document.querySelector'));
   vm.runInContext(source, sandbox);
   const api = vm.runInContext('({ state, render, parseText, importSources, readFiles, removeStatement, resetReport, applyLanguage, drawShareImage, formatMoney, formatPercent, signedMoney, safePercent, displayError, displayWarning, renderPositionsTable, renderDailyTradeTable })', sandbox);
   return { ...api, root };
@@ -94,7 +95,7 @@ test('merged reports render in all tabs and share controls with localized warnin
     app.state.activeTab = tab;
     app.render();
     assertEnglish(app.root.innerHTML);
-    assert.match(app.root.innerHTML, /2026-01-01 - 2026-02-28/);
+    assert.match(app.root.innerHTML, /2026\.01\.01 - 2026\.02\.28/);
   }
   app.state.shareOpen = true;
   app.render();
@@ -253,7 +254,7 @@ test('landscape and portrait share text use the selected language and preserve u
     await app.drawShareImage(canvas, data, format);
     assert.doesNotMatch(texts.join('\n'), /\p{Script=Han}/u);
     assert.ok(texts.includes('Ending NAV'));
-    assert.ok(texts.includes('Total P/L'));
+    assert.ok(texts.includes('Statement-period P/L'));
   }
   app.state.language = 'zh';
   app.applyLanguage();

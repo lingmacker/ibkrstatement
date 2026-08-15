@@ -1,6 +1,20 @@
-import { translate } from "./i18n.js?v=2.2.0";
-import { decodeReportFile } from "./encoding.js?v=2.2.0";
-import { parseIbkrReports } from "./parser.js?v=2.2.0";
+const assetVersion = new URL(import.meta.url).searchParams.get("v") || "";
+
+function versionedAssetUrl(path) {
+  const url = new URL(path, import.meta.url);
+  if (assetVersion) url.searchParams.set("v", assetVersion);
+  return url.href;
+}
+
+const [
+  { translate },
+  { decodeReportFile },
+  { parseIbkrReports }
+] = await Promise.all([
+  import(versionedAssetUrl("./i18n.js")),
+  import(versionedAssetUrl("./encoding.js")),
+  import(versionedAssetUrl("./parser.js"))
+]);
 
 const app = document.querySelector("#app");
 
@@ -62,9 +76,12 @@ const copy = {
     overviewHeading: "账户总览",
     overviewSubtitle: "从 NAV、现金、持仓与交易数量快速判断账户状态。",
     performanceHeading: "绩效概览",
-    performanceSubtitle: "按报表实际周期汇总已实现、未实现、资产类别和月度净额。",
+    performanceSubtitle: "区分现金流调整后的期间损益与持仓成本基础盈亏。",
     dailyHeading: "每日统计",
     dailySubtitle: "按交易日期查看每日已实现盈亏、交易笔数和成交金额。",
+    month: "月份",
+    previousMonth: "上一个月",
+    nextMonth: "下一个月",
     positionsHeading: "持仓明细",
     positionsSubtitle: "按标的、资产类别、方向和币种查看当前 Open Positions。",
     dataHeading: "数据质量",
@@ -79,15 +96,41 @@ const copy = {
     portrait: "竖版",
     downloadPng: "下载 PNG",
     close: "关闭",
-    plDistribution: "盈亏分布",
-    plDistributionKicker: "已实现与未实现盈亏",
+    plDistribution: "成本基础盈亏分布",
+    plDistributionKicker: "按持仓成本计算的已实现与当前未实现盈亏",
     total: "合计",
     realized: "已实现",
     unrealized: "未实现",
     stocks: "股票",
     options: "期权",
     forex: "外汇",
-    returnRate: "收益率"
+    returnRate: "收益率",
+    periodProfit: "期间损益",
+    cashFlowAdjusted: "现金流调整后",
+    periodBasis: "期间口径",
+    periodActualPl: "本期实际损益",
+    periodActualPlDescription: "回答“这段报表期间实际赚了多少”",
+    periodFormula: "期末净值 + 取款 − 入金 − 期初净值",
+    startingNav: "期初净值",
+    endingNav: "期末净值",
+    periodDeposits: "期间入金",
+    periodWithdrawals: "期间取款",
+    netCashFlow: "净现金流",
+    timeWeightedReturn: "时间加权收益",
+    costBasis: "成本基础口径",
+    costBasisPl: "持仓累计盈亏",
+    costBasisDescription: "按持仓买入成本计算已实现与当前未实现盈亏",
+    costBasisFormula: "已实现净额 + 当前未实现盈亏",
+    netRealized: "已实现净额",
+    currentUnrealized: "当前未实现",
+    grossRealizedProfit: "已实现毛利",
+    grossRealizedLoss: "已实现毛损",
+    profitLossRatio: "盈利 / 亏损比",
+    versusPeriodBasis: "相对期间口径",
+    performanceBasisDifferenceTitle: "为什么两个结果不同？",
+    performanceBasisDifferenceBody: "期间口径按期初、期末净值和出入金计算；成本基础口径可能包含期初持仓在报表期前已经形成、但在本期才实现的浮盈。两者回答的问题不同，不应互相替代。",
+    costBasisUnrealized: "成本基础 · 未实现",
+    costBasisRealized: "成本基础 · 已实现"
   },
   en: {
     activityStatement: "Activity Statement",
@@ -138,9 +181,12 @@ const copy = {
     overviewHeading: "Account Overview",
     overviewSubtitle: "Quickly inspect NAV, cash, positions, and trading activity.",
     performanceHeading: "Performance Overview",
-    performanceSubtitle: "Summarize realized, unrealized, asset class, and monthly net contribution for the statement period.",
+    performanceSubtitle: "Separate cash-flow-adjusted statement-period performance from position cost-basis P/L.",
     dailyHeading: "Daily Stats",
     dailySubtitle: "Review daily realized P/L, trade count, and gross trading value by trade date.",
+    month: "Month",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
     positionsHeading: "Positions",
     positionsSubtitle: "Review current Open Positions by symbol, asset class, direction, and currency.",
     dataHeading: "Data Quality",
@@ -155,17 +201,52 @@ const copy = {
     portrait: "Portrait",
     downloadPng: "Download PNG",
     close: "Close",
-    plDistribution: "P/L Distribution",
-    plDistributionKicker: "Realized and unrealized P/L",
+    plDistribution: "Cost-basis P/L Distribution",
+    plDistributionKicker: "Realized and current unrealized P/L measured from position cost basis",
     total: "Total",
     realized: "Realized",
     unrealized: "Unrealized",
     stocks: "Stocks",
     options: "Options",
     forex: "Forex",
-    returnRate: "Return"
+    returnRate: "Return",
+    periodProfit: "Statement-period P/L",
+    cashFlowAdjusted: "Cash-flow adjusted",
+    periodBasis: "Statement-period basis",
+    periodActualPl: "Actual statement-period P/L",
+    periodActualPlDescription: "Answers “How much did this account actually earn during the statement period?”",
+    periodFormula: "Ending NAV + withdrawals − deposits − starting NAV",
+    startingNav: "Starting NAV",
+    endingNav: "Ending NAV",
+    periodDeposits: "Period deposits",
+    periodWithdrawals: "Period withdrawals",
+    netCashFlow: "Net cash flow",
+    timeWeightedReturn: "Time-weighted return",
+    costBasis: "Cost-basis",
+    costBasisPl: "Cumulative position P/L",
+    costBasisDescription: "Realized and current unrealized P/L measured from position purchase cost",
+    costBasisFormula: "Net realized P/L + current unrealized P/L",
+    netRealized: "Net realized",
+    currentUnrealized: "Current unrealized",
+    grossRealizedProfit: "Gross realized profit",
+    grossRealizedLoss: "Gross realized loss",
+    profitLossRatio: "Profit / loss ratio",
+    versusPeriodBasis: "Versus statement-period basis",
+    performanceBasisDifferenceTitle: "Why do the results differ?",
+    performanceBasisDifferenceBody: "Statement-period P/L uses starting NAV, ending NAV, deposits, and withdrawals. Cost-basis P/L may include gains formed before the statement period on opening positions but realized during it. The two measures answer different questions and should not replace each other.",
+    costBasisUnrealized: "Cost-basis · Unrealized",
+    costBasisRealized: "Cost-basis · Realized"
   }
 };
+
+const ENGLISH_STATEMENT_MONTHS = Object.freeze([
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december"
+]);
+const CHINESE_STATEMENT_MONTHS = Object.freeze([
+  "一月", "二月", "三月", "四月", "五月", "六月",
+  "七月", "八月", "九月", "十月", "十一月", "十二月"
+]);
 
 const icons = {
   analytics: '<path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 15l3-4 3 2 4-7" /><path d="M17 6h1.8v1.8" />',
@@ -188,6 +269,8 @@ const icons = {
   close: '<path d="M18 6 6 18" /><path d="m6 6 12 12" />',
   arrowUp: '<path d="M12 19V5" /><path d="m6 11 6-6 6 6" />',
   arrowDown: '<path d="M12 5v14" /><path d="m6 13 6 6 6-6" />',
+  chevronLeft: '<path d="m15 18-6-6 6-6" />',
+  chevronRight: '<path d="m9 18 6-6-6-6" />',
   shield: '<path d="M12 3 5 6v5c0 4.5 2.9 8.5 7 10 4.1-1.5 7-5.5 7-10V6l-7-3Z" />',
   settings: '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2 3.4-.2-.1a1.8 1.8 0 0 0-2 .4 1.8 1.8 0 0 0-.6 1.2H9a1.8 1.8 0 0 0-.6-1.2 1.8 1.8 0 0 0-2-.4l-.2.1-2-3.4.1-.1a1.8 1.8 0 0 0 .4-2 1.8 1.8 0 0 0-1.1-1V10a1.8 1.8 0 0 0 1.1-1 1.8 1.8 0 0 0-.4-2l-.1-.1 2-3.4.2.1a1.8 1.8 0 0 0 2-.4A1.8 1.8 0 0 0 9 2h6a1.8 1.8 0 0 0 .6 1.2 1.8 1.8 0 0 0 2 .4l.2-.1 2 3.4-.1.1a1.8 1.8 0 0 0-.4 2 1.8 1.8 0 0 0 1.1 1v4a1.8 1.8 0 0 0-1 1Z" />'
 };
@@ -500,7 +583,7 @@ function renderActiveTab() {
 
 function renderOverview(data) {
   const currency = data.baseCurrency || "USD";
-  const totalPL = data.plSummary.total.total;
+  const totalPL = data.periodPerformance?.profitLoss ?? data.plSummary.total.total;
   const portfolioAllocation = buildPortfolioAllocation(data);
   return `
     <div class="content-stack">
@@ -509,7 +592,7 @@ function renderOverview(data) {
       <div class="grid-12">
         ${renderKpi(tr("期末净值"), formatMoney(data.nav.total, currency), renderDateRange(data), "span-3")}
         ${renderKpi(tr("现金"), formatMoney(data.nav.cash, currency), "Net Asset Value / Cash", "span-3")}
-        ${renderKpi(tr("总盈亏"), formatMoney(totalPL, currency), tr("已实现 + 未实现"), "span-3", totalPL)}
+        ${renderKpi(t("periodProfit"), formatMoney(totalPL, currency), t("cashFlowAdjusted"), "span-3", totalPL)}
         ${renderKpi(tr("时间加权收益"), formatPercent(data.nav.rateOfReturn), "IBKR TWR", "span-3", data.nav.rateOfReturn)}
         ${renderKpi(tr("交易订单"), formatNumber(data.tradeSummary.orderCount), `${formatNumber(data.tradeSummary.stockOrders)} ${t("stocks")} / ${formatNumber(data.tradeSummary.forexOrders)} ${t("forex")}`, "span-3")}
         ${renderKpi(tr("当前持仓"), formatNumber(data.positions.length), `${formatNumber(data.assetAllocation.length)} ${tr("个资产类别")}`, "span-3")}
@@ -540,28 +623,13 @@ function renderOverview(data) {
 
 function renderPerformance(data) {
   const currency = data.baseCurrency || "USD";
-  const pl = data.plSummary.total;
 
   return `
     <div class="content-stack">
       ${renderPageHeading(t("performanceHeading"), data, t("performanceSubtitle"))}
       ${data.plSummary.total.total === null ? `<div class="error-banner">${tr("盈亏汇总数据缺失；相关指标显示为 —。")}</div>` : ""}
       <div class="grid-12">
-        ${renderKpi(tr("已实现盈亏"), formatMoney(pl.realized, currency), "Realized P/L", "span-4 performance-kpi", pl.realized, {
-          label: t("returnRate"),
-          value: `${formatSignedPercent(safePercent(pl.realized, data.nav.total))} / NAV`,
-          toneValue: pl.realized
-        })}
-        ${renderKpi(tr("未实现盈亏"), formatMoney(pl.unrealized, currency), "Unrealized P/L", "span-4 performance-kpi", pl.unrealized, {
-          label: t("returnRate"),
-          value: `${formatSignedPercent(safePercent(pl.unrealized, data.nav.total))} / NAV`,
-          toneValue: pl.unrealized
-        })}
-        ${renderKpi(tr("总盈亏"), formatMoney(pl.total, currency), "Total P/L", "span-4 is-featured performance-kpi", pl.total, {
-          label: t("returnRate"),
-          value: `${formatSignedPercent(safePercent(pl.total, data.nav.total))} / NAV`,
-          toneValue: pl.total
-        })}
+        ${renderPerformanceDimensions(data, currency)}
         <section class="dashboard-card span-6">
           <div class="card-header">
             <div>
@@ -597,6 +665,11 @@ function renderDailyStats(data) {
   const rows = data.dailyTradeStats || [];
   const months = Array.from(new Set(rows.map((row) => row.month))).sort();
   const selectedMonth = months.includes(state.dailyMonth) ? state.dailyMonth : months.at(-1) || "";
+  const selectedMonthIndex = months.indexOf(selectedMonth);
+  const previousMonth = selectedMonthIndex > 0 ? months[selectedMonthIndex - 1] : "";
+  const nextMonth = selectedMonthIndex >= 0 && selectedMonthIndex < months.length - 1
+    ? months[selectedMonthIndex + 1]
+    : "";
   const monthRows = selectedMonth ? rows.filter((row) => row.month === selectedMonth) : [];
   const tradeRows = selectedMonth ? (data.tradeDetails || []).filter((row) => row.month === selectedMonth) : [];
   const totalTrades = monthRows.reduce((sum, row) => sum + row.tradeCount, 0);
@@ -609,12 +682,20 @@ function renderDailyStats(data) {
     <div class="content-stack">
       ${renderPageHeading(t("dailyHeading"), data, t("dailySubtitle"))}
       <div class="daily-toolbar">
-        <label class="month-select-label">
-          <span>${tr("月份")}</span>
-          <select class="month-select" id="dailyMonthSelect" ${months.length ? "" : "disabled"}>
-            ${months.map((month) => `<option value="${escapeAttribute(month)}"${month === selectedMonth ? " selected" : ""}>${escapeHtml(formatMonthLabel(month))}</option>`).join("")}
-          </select>
-        </label>
+        <div class="month-select-label">
+          <label for="dailyMonthSelect">${t("month")}</label>
+          <div class="month-switcher">
+            <button class="month-nav-button" type="button" data-daily-month="${escapeAttribute(previousMonth)}" aria-label="${escapeAttribute(t("previousMonth"))}" title="${escapeAttribute(t("previousMonth"))}" ${previousMonth ? "" : "disabled"}>
+              ${icon("chevronLeft")}
+            </button>
+            <select class="month-select" id="dailyMonthSelect" ${months.length ? "" : "disabled"}>
+              ${months.map((month) => `<option value="${escapeAttribute(month)}"${month === selectedMonth ? " selected" : ""}>${escapeHtml(formatMonthLabel(month))}</option>`).join("")}
+            </select>
+            <button class="month-nav-button" type="button" data-daily-month="${escapeAttribute(nextMonth)}" aria-label="${escapeAttribute(t("nextMonth"))}" title="${escapeAttribute(t("nextMonth"))}" ${nextMonth ? "" : "disabled"}>
+              ${icon("chevronRight")}
+            </button>
+          </div>
+        </div>
       </div>
       <div class="grid-12">
         <section class="dashboard-card span-7 daily-calendar-card">
@@ -741,6 +822,74 @@ function renderKpi(label, value, foot, className = "span-3", toneValue = null, s
         ` : ""}
       </div>
     </section>
+  `;
+}
+
+function renderPerformanceDimensions(data, currency) {
+  const period = data.periodPerformance || {};
+  const costBasis = data.plSummary.total;
+  const basisDifference = Number.isFinite(costBasis.total) && Number.isFinite(period.profitLoss)
+    ? costBasis.total - period.profitLoss : null;
+  const grossRealizedLoss = Number.isFinite(costBasis.grossRealizedLoss) ? -costBasis.grossRealizedLoss : null;
+  const ratio = Number.isFinite(costBasis.realizedProfitLossRatio)
+    ? `${formatNumber(costBasis.realizedProfitLossRatio, 1)} : 1`
+    : "—";
+
+  return `
+    <section class="dashboard-card performance-basis-card is-period span-6">
+      <div class="performance-basis-header">
+        <div>
+          <span class="performance-basis-eyebrow">${t("periodBasis")}</span>
+          <h2>${t("periodActualPl")}</h2>
+          <p>${t("periodActualPlDescription")}</p>
+        </div>
+        <span class="pill">${currency}</span>
+      </div>
+      <strong class="performance-basis-value ${valueClass(period.profitLoss)}">${formatMoney(period.profitLoss, currency)}</strong>
+      <p class="performance-basis-formula">${t("periodFormula")}</p>
+      <div class="performance-basis-metrics">
+        ${renderPerformanceBasisMetric(t("startingNav"), formatMoney(period.startingValue, currency))}
+        ${renderPerformanceBasisMetric(t("endingNav"), formatMoney(period.endingValue, currency))}
+        ${renderPerformanceBasisMetric(t("periodDeposits"), formatMoney(period.deposits, currency))}
+        ${renderPerformanceBasisMetric(t("periodWithdrawals"), formatMoney(period.withdrawals, currency))}
+        ${renderPerformanceBasisMetric(t("netCashFlow"), signedMoney(period.netCashFlow, currency), period.netCashFlow)}
+        ${renderPerformanceBasisMetric(t("timeWeightedReturn"), formatPercent(period.timeWeightedReturn), period.timeWeightedReturn)}
+      </div>
+    </section>
+    <section class="dashboard-card performance-basis-card span-6">
+      <div class="performance-basis-header">
+        <div>
+          <span class="performance-basis-eyebrow">${t("costBasis")}</span>
+          <h2>${t("costBasisPl")}</h2>
+          <p>${t("costBasisDescription")}</p>
+        </div>
+        <span class="pill">${currency}</span>
+      </div>
+      <strong class="performance-basis-value ${valueClass(costBasis.total)}">${formatMoney(costBasis.total, currency)}</strong>
+      <p class="performance-basis-formula">${t("costBasisFormula")}</p>
+      <div class="performance-basis-metrics">
+        ${renderPerformanceBasisMetric(t("netRealized"), formatMoney(costBasis.realized, currency), costBasis.realized)}
+        ${renderPerformanceBasisMetric(t("currentUnrealized"), formatMoney(costBasis.unrealized, currency), costBasis.unrealized)}
+        ${renderPerformanceBasisMetric(t("grossRealizedProfit"), formatMoney(costBasis.grossRealizedProfit, currency), costBasis.grossRealizedProfit)}
+        ${renderPerformanceBasisMetric(t("grossRealizedLoss"), signedMoney(grossRealizedLoss, currency), grossRealizedLoss)}
+        ${renderPerformanceBasisMetric(t("profitLossRatio"), ratio)}
+        ${renderPerformanceBasisMetric(t("versusPeriodBasis"), signedMoney(basisDifference, currency), basisDifference)}
+      </div>
+    </section>
+    <section class="performance-basis-note span-12">
+      <strong>${t("performanceBasisDifferenceTitle")}</strong>
+      <p>${t("performanceBasisDifferenceBody")}</p>
+    </section>
+  `;
+}
+
+function renderPerformanceBasisMetric(label, value, toneValue = null) {
+  const toneClass = Number.isFinite(toneValue) && toneValue !== 0 ? ` ${valueClass(toneValue)}` : "";
+  return `
+    <div class="performance-basis-metric">
+      <span>${escapeHtml(label)}</span>
+      <strong class="${toneClass.trim()}">${escapeHtml(value)}</strong>
+    </div>
   `;
 }
 
@@ -1261,6 +1410,15 @@ function bindDashboardEvents() {
     renderDashboard();
   });
 
+  document.querySelectorAll("[data-daily-month]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const month = button.dataset.dailyMonth || "";
+      if (!month || month === state.dailyMonth) return;
+      state.dailyMonth = month;
+      renderDashboard();
+    });
+  });
+
   document.querySelector("#downloadShareImageButton")?.addEventListener("click", downloadShareImage);
 
   const searchInput = document.querySelector("#globalSearch");
@@ -1359,7 +1517,7 @@ async function loadSample() {
   state.importing = true;
   render();
   try {
-    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.2.0");
+    const response = await fetch(versionedAssetUrl("../samples/ibkr-sample-demo.csv"));
     if (!response.ok) throw new Error("sample unavailable");
     const text = await response.text();
     if (revision !== state.importRevision) return;
@@ -1548,13 +1706,14 @@ function legacyShareTheme() {
 }
 
 function buildLegacyShareModel(data) {
-  const totalPl = data.plSummary.total;
+  const costBasisPl = data.plSummary.total;
+  const totalPl = data.periodPerformance?.profitLoss ?? costBasisPl.total;
   const customName = state.shareName.trim();
   return {
     name: state.shareHideName ? "*****" : (customName || data.accountInfo.name || tr("账户视图")),
     hideNav: state.shareHideNav,
     account: data.accountInfo.account ? maskAccount(data.accountInfo.account) : tr("未识别账户"),
-    period: data.accountInfo.period || renderDateRange(data),
+    period: renderDateRange(data),
     currency: data.baseCurrency || "USD",
     generatedDate: new Intl.DateTimeFormat(numberLocale(), {
       year: "numeric",
@@ -1563,9 +1722,9 @@ function buildLegacyShareModel(data) {
     }).format(new Date()),
     nav: data.nav.total,
     cash: data.nav.cash,
-    totalPl: totalPl.total,
-    realizedPl: totalPl.realized,
-    unrealizedPl: totalPl.unrealized,
+    totalPl,
+    realizedPl: costBasisPl.realized,
+    unrealizedPl: costBasisPl.unrealized,
     twr: data.nav.rateOfReturn,
     positions: data.positions.length,
     sections: Object.keys(data.sectionStats).length,
@@ -1593,7 +1752,7 @@ function drawLegacyLandscapeShareImage(ctx, model, theme, logoImage) {
   drawLegacySharePill(ctx, `${model.currency} Base`, pillX, 176, theme, { tone: "brand" });
 
   drawLegacyShareHero(ctx, 60, 222, 440, 176, model, theme, { valueOffsetY: 62, valueScale: 0.92 });
-  drawLegacyShareMetric(ctx, 520, 222, 230, 80, tr("总盈亏"), formatMoney(model.totalPl, model.currency), model.totalPl, theme);
+  drawLegacyShareMetric(ctx, 520, 222, 230, 80, t("periodProfit"), formatMoney(model.totalPl, model.currency), model.totalPl, theme);
   drawLegacyShareMetric(ctx, 520, 318, 230, 80, tr("持仓数"), formatNumber(model.positions), model.positions, theme);
   drawLegacyShareAllocation(ctx, 770, 222, 370, 176, model, theme, { compact: true });
   drawLegacyShareMonthlyTrend(ctx, 60, 422, 530, 146, model, theme, { compact: true });
@@ -1617,9 +1776,9 @@ function drawLegacyPortraitShareImage(ctx, model, theme, logoImage) {
   drawLegacySharePill(ctx, model.period, 70, 346, theme, { scale: 1.18 });
 
   drawLegacyShareHero(ctx, 70, 435, 940, 220, model, theme, { scale: 1.28 });
-  drawLegacyShareMetric(ctx, 70, 685, 455, 112, tr("总盈亏"), formatMoney(model.totalPl, model.currency), model.totalPl, theme, { scale: 1.12 });
-  drawLegacyShareMetric(ctx, 555, 685, 455, 112, tr("未实现盈亏"), formatMoney(model.unrealizedPl, model.currency), model.unrealizedPl, theme, { scale: 1.12 });
-  drawLegacyShareMetric(ctx, 70, 820, 455, 112, tr("已实现盈亏"), formatMoney(model.realizedPl, model.currency), model.realizedPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 70, 685, 455, 112, t("periodProfit"), formatMoney(model.totalPl, model.currency), model.totalPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 555, 685, 455, 112, t("costBasisUnrealized"), formatMoney(model.unrealizedPl, model.currency), model.unrealizedPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 70, 820, 455, 112, t("costBasisRealized"), formatMoney(model.realizedPl, model.currency), model.realizedPl, theme, { scale: 1.12 });
   drawLegacyShareMetric(ctx, 555, 820, 455, 112, tr("持仓数"), formatNumber(model.positions), model.positions, theme, { scale: 1.12 });
   drawLegacyShareAllocation(ctx, 70, 970, 940, 285, model, theme, { scale: 1.18 });
   drawLegacyShareTickerList(ctx, 70, 1295, 940, 350, model, theme, { rowHeight: 50, scale: 1.18 });
@@ -2065,10 +2224,61 @@ function searchMatch(values) {
 }
 
 function renderDateRange(data) {
-  if (data.accountInfo.period) return data.accountInfo.period;
-  const first = formatDate(data.tradeSummary.firstTradeDate);
-  const last = formatDate(data.tradeSummary.lastTradeDate);
-  return first && last ? `${first} - ${last}` : tr("未识别周期");
+  const period = formatStatementPeriod(data.accountInfo.period);
+  if (period) return period;
+  const first = formatDottedDate(data.tradeSummary.firstTradeDate);
+  const last = formatDottedDate(data.tradeSummary.lastTradeDate);
+  return first && last ? `${first} - ${last}` : t("unknownPeriod");
+}
+
+function formatStatementPeriod(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const parts = raw.split(/\s+[-–—]\s+/);
+  if (parts.length !== 2) return raw;
+
+  const start = parseStatementDateParts(parts[0]);
+  const end = parseStatementDateParts(parts[1]);
+  if (!start || !end) return raw;
+  return `${formatDateParts(start)} - ${formatDateParts(end)}`;
+}
+
+function parseStatementDateParts(value) {
+  const normalized = String(value || "").trim().replace(/\s+/g, " ");
+  const numeric = normalized.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (numeric) return validDateParts(numeric[1], numeric[2], numeric[3]);
+
+  const named = normalized.match(/^([A-Za-z.]+|[\u3400-\u9fff]+月)\s+(\d{1,2}),\s*(\d{4})$/);
+  if (!named) return null;
+
+  const monthName = named[1].toLowerCase().replace(/\.$/, "");
+  let month = ENGLISH_STATEMENT_MONTHS.findIndex((name) => name === monthName || name.slice(0, 3) === monthName) + 1;
+  if (!month) month = CHINESE_STATEMENT_MONTHS.indexOf(named[1]) + 1;
+  return month ? validDateParts(named[3], month, named[2]) : null;
+}
+
+function validDateParts(year, month, day) {
+  const parts = { year: Number(year), month: Number(month), day: Number(day) };
+  if (!Number.isInteger(parts.year) || !Number.isInteger(parts.month) || !Number.isInteger(parts.day)) return null;
+  if (parts.month < 1 || parts.month > 12 || parts.day < 1) return null;
+  const daysInMonth = new Date(parts.year, parts.month, 0).getDate();
+  return parts.day <= daysInMonth ? parts : null;
+}
+
+function formatDateParts({ year, month, day }) {
+  return `${String(year).padStart(4, "0")}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}`;
+}
+
+function formatDottedDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return formatDateParts({
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate()
+  });
 }
 
 function displayGroup(name) {
