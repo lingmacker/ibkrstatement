@@ -79,6 +79,9 @@ const copy = {
     performanceSubtitle: "区分现金流调整后的期间损益与持仓成本基础盈亏。",
     dailyHeading: "每日统计",
     dailySubtitle: "按交易日期查看每日已实现盈亏、交易笔数和成交金额。",
+    month: "月份",
+    previousMonth: "上一个月",
+    nextMonth: "下一个月",
     positionsHeading: "持仓明细",
     positionsSubtitle: "按标的、资产类别、方向和币种查看当前 Open Positions。",
     dataHeading: "数据质量",
@@ -181,6 +184,9 @@ const copy = {
     performanceSubtitle: "Separate cash-flow-adjusted statement-period performance from position cost-basis P/L.",
     dailyHeading: "Daily Stats",
     dailySubtitle: "Review daily realized P/L, trade count, and gross trading value by trade date.",
+    month: "Month",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
     positionsHeading: "Positions",
     positionsSubtitle: "Review current Open Positions by symbol, asset class, direction, and currency.",
     dataHeading: "Data Quality",
@@ -263,6 +269,8 @@ const icons = {
   close: '<path d="M18 6 6 18" /><path d="m6 6 12 12" />',
   arrowUp: '<path d="M12 19V5" /><path d="m6 11 6-6 6 6" />',
   arrowDown: '<path d="M12 5v14" /><path d="m6 13 6 6 6-6" />',
+  chevronLeft: '<path d="m15 18-6-6 6-6" />',
+  chevronRight: '<path d="m9 18 6-6-6-6" />',
   shield: '<path d="M12 3 5 6v5c0 4.5 2.9 8.5 7 10 4.1-1.5 7-5.5 7-10V6l-7-3Z" />',
   settings: '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2 3.4-.2-.1a1.8 1.8 0 0 0-2 .4 1.8 1.8 0 0 0-.6 1.2H9a1.8 1.8 0 0 0-.6-1.2 1.8 1.8 0 0 0-2-.4l-.2.1-2-3.4.1-.1a1.8 1.8 0 0 0 .4-2 1.8 1.8 0 0 0-1.1-1V10a1.8 1.8 0 0 0 1.1-1 1.8 1.8 0 0 0-.4-2l-.1-.1 2-3.4.2.1a1.8 1.8 0 0 0 2-.4A1.8 1.8 0 0 0 9 2h6a1.8 1.8 0 0 0 .6 1.2 1.8 1.8 0 0 0 2 .4l.2-.1 2 3.4-.1.1a1.8 1.8 0 0 0-.4 2 1.8 1.8 0 0 0 1.1 1v4a1.8 1.8 0 0 0-1 1Z" />'
 };
@@ -624,6 +632,11 @@ function renderDailyStats(data) {
   const rows = data.dailyTradeStats || [];
   const months = Array.from(new Set(rows.map((row) => row.month))).sort();
   const selectedMonth = months.includes(state.dailyMonth) ? state.dailyMonth : months.at(-1) || "";
+  const selectedMonthIndex = months.indexOf(selectedMonth);
+  const previousMonth = selectedMonthIndex > 0 ? months[selectedMonthIndex - 1] : "";
+  const nextMonth = selectedMonthIndex >= 0 && selectedMonthIndex < months.length - 1
+    ? months[selectedMonthIndex + 1]
+    : "";
   const monthRows = selectedMonth ? rows.filter((row) => row.month === selectedMonth) : [];
   const tradeRows = selectedMonth ? (data.tradeDetails || []).filter((row) => row.month === selectedMonth) : [];
   const totalTrades = monthRows.reduce((sum, row) => sum + row.tradeCount, 0);
@@ -636,12 +649,20 @@ function renderDailyStats(data) {
     <div class="content-stack">
       ${renderPageHeading(t("dailyHeading"), data, t("dailySubtitle"))}
       <div class="daily-toolbar">
-        <label class="month-select-label">
-          <span>月份</span>
-          <select class="month-select" id="dailyMonthSelect" ${months.length ? "" : "disabled"}>
-            ${months.map((month) => `<option value="${escapeAttribute(month)}"${month === selectedMonth ? " selected" : ""}>${escapeHtml(formatMonthLabel(month))}</option>`).join("")}
-          </select>
-        </label>
+        <div class="month-select-label">
+          <label for="dailyMonthSelect">${t("month")}</label>
+          <div class="month-switcher">
+            <button class="month-nav-button" type="button" data-daily-month="${escapeAttribute(previousMonth)}" aria-label="${escapeAttribute(t("previousMonth"))}" title="${escapeAttribute(t("previousMonth"))}" ${previousMonth ? "" : "disabled"}>
+              ${icon("chevronLeft")}
+            </button>
+            <select class="month-select" id="dailyMonthSelect" ${months.length ? "" : "disabled"}>
+              ${months.map((month) => `<option value="${escapeAttribute(month)}"${month === selectedMonth ? " selected" : ""}>${escapeHtml(formatMonthLabel(month))}</option>`).join("")}
+            </select>
+            <button class="month-nav-button" type="button" data-daily-month="${escapeAttribute(nextMonth)}" aria-label="${escapeAttribute(t("nextMonth"))}" title="${escapeAttribute(t("nextMonth"))}" ${nextMonth ? "" : "disabled"}>
+              ${icon("chevronRight")}
+            </button>
+          </div>
+        </div>
       </div>
       <div class="grid-12">
         <section class="dashboard-card span-7 daily-calendar-card">
@@ -1335,6 +1356,15 @@ function bindDashboardEvents() {
   document.querySelector("#dailyMonthSelect")?.addEventListener("change", (event) => {
     state.dailyMonth = event.currentTarget.value || "";
     renderDashboard();
+  });
+
+  document.querySelectorAll("[data-daily-month]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const month = button.dataset.dailyMonth || "";
+      if (!month || month === state.dailyMonth) return;
+      state.dailyMonth = month;
+      renderDashboard();
+    });
   });
 
   document.querySelector("#downloadShareImageButton")?.addEventListener("click", downloadShareImage);
