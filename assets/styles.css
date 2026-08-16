@@ -1480,10 +1480,33 @@ tbody tr:hover {
 
 .allocation-row {
   display: grid;
-  grid-template-columns: minmax(100px, 1fr) minmax(140px, 2fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label value"
+    "track track";
   align-items: center;
-  gap: 10px;
+  gap: 7px 12px;
+  min-width: 0;
   font-size: 13px;
+}
+
+.allocation-row > strong {
+  grid-area: label;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.allocation-row > .mini-track {
+  grid-area: track;
+}
+
+.allocation-row > .numeric {
+  grid-area: value;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .mini-track {
@@ -2014,8 +2037,7 @@ tbody tr:hover {
   }
 
   .allocation-row {
-    grid-template-columns: 1fr;
-    gap: 6px;
+    gap: 6px 10px;
   }
 
   .brand-subtitle {
