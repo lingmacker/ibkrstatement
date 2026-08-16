@@ -10,10 +10,20 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>IBKR Analytics Studio</title>
     <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
-    <link rel="stylesheet" href="./assets/styles.css?v=2.1.9" />
+    <script type="module">
+      const ASSET_VERSION = "2.1.10";
+      const stylesheet = document.createElement("link");
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = `./assets/styles.css?v=${ASSET_VERSION}`;
+      document.head.append(stylesheet);
+      await new Promise((resolve) => {
+        stylesheet.addEventListener("load", resolve, { once: true });
+        stylesheet.addEventListener("error", resolve, { once: true });
+      });
+      await import(`./src/app.js?v=${ASSET_VERSION}`);
+    </script>
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="./src/app.js?v=2.1.9"></script>
   </body>
 </html>

@@ -1,6 +1,20 @@
-import { decodeReportFile } from "./encoding.js?v=2.1.9";
-import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.9";
-import { parseIbkrReport } from "./parser.js?v=2.1.9";
+const assetVersion = new URL(import.meta.url).searchParams.get("v") || "";
+
+function versionedAssetUrl(path) {
+  const url = new URL(path, import.meta.url);
+  if (assetVersion) url.searchParams.set("v", assetVersion);
+  return url.href;
+}
+
+const [
+  { decodeReportFile },
+  { isChineseIbkrReport },
+  { parseIbkrReport }
+] = await Promise.all([
+  import(versionedAssetUrl("./encoding.js")),
+  import(versionedAssetUrl("./reportLanguage.js")),
+  import(versionedAssetUrl("./parser.js"))
+]);
 
 const app = document.querySelector("#app");
 
@@ -218,6 +232,15 @@ const copy = {
     costBasisRealized: "Cost-basis · Realized"
   }
 };
+
+const ENGLISH_STATEMENT_MONTHS = Object.freeze([
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december"
+]);
+const CHINESE_STATEMENT_MONTHS = Object.freeze([
+  "一月", "二月", "三月", "四月", "五月", "六月",
+  "七月", "八月", "九月", "十月", "十一月", "十二月"
+]);
 
 const icons = {
   analytics: '<path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 15l3-4 3 2 4-7" /><path d="M17 6h1.8v1.8" />',
@@ -1375,7 +1398,7 @@ async function readFile(file) {
 
 async function loadSample() {
   try {
-    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.9");
+    const response = await fetch(versionedAssetUrl("../samples/ibkr-sample-demo.csv"));
     if (!response.ok) throw new Error("sample unavailable");
     parseText(await response.text(), "ibkr-sample-demo.csv");
   } catch (error) {
@@ -1538,7 +1561,7 @@ function buildLegacyShareModel(data) {
     name: state.shareHideName ? "*****" : (customName || data.accountInfo.name || "账户视图"),
     hideNav: state.shareHideNav,
     account: data.accountInfo.account ? maskAccount(data.accountInfo.account) : "未识别账户",
-    period: data.accountInfo.period || renderDateRange(data),
+    period: renderDateRange(data),
     currency: data.baseCurrency || "USD",
     generatedDate: new Intl.DateTimeFormat(numberLocale(), {
       year: "numeric",
@@ -2049,10 +2072,61 @@ function searchMatch(values) {
 }
 
 function renderDateRange(data) {
-  if (data.accountInfo.period) return data.accountInfo.period;
-  const first = formatDate(data.tradeSummary.firstTradeDate);
-  const last = formatDate(data.tradeSummary.lastTradeDate);
-  return first && last ? `${first} - ${last}` : "未识别周期";
+  const period = formatStatementPeriod(data.accountInfo.period);
+  if (period) return period;
+  const first = formatDottedDate(data.tradeSummary.firstTradeDate);
+  const last = formatDottedDate(data.tradeSummary.lastTradeDate);
+  return first && last ? `${first} - ${last}` : t("unknownPeriod");
+}
+
+function formatStatementPeriod(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const parts = raw.split(/\s+[-–—]\s+/);
+  if (parts.length !== 2) return raw;
+
+  const start = parseStatementDateParts(parts[0]);
+  const end = parseStatementDateParts(parts[1]);
+  if (!start || !end) return raw;
+  return `${formatDateParts(start)} - ${formatDateParts(end)}`;
+}
+
+function parseStatementDateParts(value) {
+  const normalized = String(value || "").trim().replace(/\s+/g, " ");
+  const numeric = normalized.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (numeric) return validDateParts(numeric[1], numeric[2], numeric[3]);
+
+  const named = normalized.match(/^([A-Za-z.]+|[\u3400-\u9fff]+月)\s+(\d{1,2}),\s*(\d{4})$/);
+  if (!named) return null;
+
+  const monthName = named[1].toLowerCase().replace(/\.$/, "");
+  let month = ENGLISH_STATEMENT_MONTHS.findIndex((name) => name === monthName || name.slice(0, 3) === monthName) + 1;
+  if (!month) month = CHINESE_STATEMENT_MONTHS.indexOf(named[1]) + 1;
+  return month ? validDateParts(named[3], month, named[2]) : null;
+}
+
+function validDateParts(year, month, day) {
+  const parts = { year: Number(year), month: Number(month), day: Number(day) };
+  if (!Number.isInteger(parts.year) || !Number.isInteger(parts.month) || !Number.isInteger(parts.day)) return null;
+  if (parts.month < 1 || parts.month > 12 || parts.day < 1) return null;
+  const daysInMonth = new Date(parts.year, parts.month, 0).getDate();
+  return parts.day <= daysInMonth ? parts : null;
+}
+
+function formatDateParts({ year, month, day }) {
+  return `${String(year).padStart(4, "0")}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}`;
+}
+
+function formatDottedDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return formatDateParts({
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate()
+  });
 }
 
 function displayGroup(name) {
