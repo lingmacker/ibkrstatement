@@ -1,6 +1,6 @@
-import { decodeReportFile } from "./encoding.js?v=2.1.8";
-import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.8";
-import { parseIbkrReport } from "./parser.js?v=2.1.8";
+import { decodeReportFile } from "./encoding.js?v=2.1.9";
+import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.9";
+import { parseIbkrReport } from "./parser.js?v=2.1.9";
 
 const app = document.querySelector("#app");
 
@@ -87,7 +87,33 @@ const copy = {
     stocks: "股票",
     options: "期权",
     forex: "外汇",
-    returnRate: "收益率"
+    returnRate: "收益率",
+    periodProfit: "期间损益",
+    cashFlowAdjusted: "现金流调整后",
+    periodBasis: "期间口径",
+    periodActualPl: "本期实际损益",
+    periodActualPlDescription: "回答“这段报表期间实际赚了多少”",
+    periodFormula: "期末净值 + 取款 − 入金 − 期初净值",
+    startingNav: "期初净值",
+    endingNav: "期末净值",
+    periodDeposits: "期间入金",
+    periodWithdrawals: "期间取款",
+    netCashFlow: "净现金流",
+    timeWeightedReturn: "时间加权收益",
+    costBasis: "成本基础口径",
+    costBasisPl: "持仓累计盈亏",
+    costBasisDescription: "按持仓买入成本计算已实现与当前未实现盈亏",
+    costBasisFormula: "已实现净额 + 当前未实现盈亏",
+    netRealized: "已实现净额",
+    currentUnrealized: "当前未实现",
+    grossRealizedProfit: "已实现毛利",
+    grossRealizedLoss: "已实现毛损",
+    profitLossRatio: "盈利 / 亏损比",
+    versusPeriodBasis: "相对期间口径",
+    performanceBasisDifferenceTitle: "为什么两个结果不同？",
+    performanceBasisDifferenceBody: "期间口径按期初、期末净值和出入金计算；成本基础口径可能包含期初持仓在报表期前已经形成、但在本期才实现的浮盈。两者回答的问题不同，不应互相替代。",
+    costBasisUnrealized: "成本基础 · 未实现",
+    costBasisRealized: "成本基础 · 已实现"
   },
   en: {
     activityStatement: "Activity Statement",
@@ -163,7 +189,33 @@ const copy = {
     stocks: "Stocks",
     options: "Options",
     forex: "Forex",
-    returnRate: "Return"
+    returnRate: "Return",
+    periodProfit: "Statement-period P/L",
+    cashFlowAdjusted: "Cash-flow adjusted",
+    periodBasis: "Statement-period basis",
+    periodActualPl: "Actual statement-period P/L",
+    periodActualPlDescription: "Answers “How much did this account actually earn during the statement period?”",
+    periodFormula: "Ending NAV + withdrawals − deposits − starting NAV",
+    startingNav: "Starting NAV",
+    endingNav: "Ending NAV",
+    periodDeposits: "Period deposits",
+    periodWithdrawals: "Period withdrawals",
+    netCashFlow: "Net cash flow",
+    timeWeightedReturn: "Time-weighted return",
+    costBasis: "Cost-basis",
+    costBasisPl: "Cumulative position P/L",
+    costBasisDescription: "Realized and current unrealized P/L measured from position purchase cost",
+    costBasisFormula: "Net realized P/L + current unrealized P/L",
+    netRealized: "Net realized",
+    currentUnrealized: "Current unrealized",
+    grossRealizedProfit: "Gross realized profit",
+    grossRealizedLoss: "Gross realized loss",
+    profitLossRatio: "Profit / loss ratio",
+    versusPeriodBasis: "Versus statement-period basis",
+    performanceBasisDifferenceTitle: "Why do the results differ?",
+    performanceBasisDifferenceBody: "Statement-period P/L uses starting NAV, ending NAV, deposits, and withdrawals. Cost-basis P/L may include gains formed before the statement period on opening positions but realized during it. The two measures answer different questions and should not replace each other.",
+    costBasisUnrealized: "Cost-basis · Unrealized",
+    costBasisRealized: "Cost-basis · Realized"
   }
 };
 
@@ -477,7 +529,7 @@ function renderOverview(data) {
       <div class="grid-12">
         ${renderKpi("期末净值", formatMoney(data.nav.total, currency), renderDateRange(data), "span-3")}
         ${renderKpi("现金", formatMoney(data.nav.cash, currency), "Net Asset Value / Cash", "span-3")}
-        ${renderKpi("期间损益", formatMoney(totalPL, currency), "现金流调整后", "span-3", totalPL)}
+        ${renderKpi(t("periodProfit"), formatMoney(totalPL, currency), t("cashFlowAdjusted"), "span-3", totalPL)}
         ${renderKpi("时间加权收益", formatPercent(data.nav.rateOfReturn), "IBKR TWR", "span-3", data.nav.rateOfReturn)}
         ${renderKpi("交易订单", formatNumber(data.tradeSummary.orderCount), `${formatNumber(data.tradeSummary.stockOrders)} 股票 / ${formatNumber(data.tradeSummary.forexOrders)} 外汇`, "span-3")}
         ${renderKpi("当前持仓", formatNumber(data.positions.length), `${formatNumber(data.assetAllocation.length)} 个资产类别`, "span-3")}
@@ -708,46 +760,46 @@ function renderPerformanceDimensions(data, currency) {
     <section class="dashboard-card performance-basis-card is-period span-6">
       <div class="performance-basis-header">
         <div>
-          <span class="performance-basis-eyebrow">期间口径</span>
-          <h2>本期实际损益</h2>
-          <p>回答“这段报表期间实际赚了多少”</p>
+          <span class="performance-basis-eyebrow">${t("periodBasis")}</span>
+          <h2>${t("periodActualPl")}</h2>
+          <p>${t("periodActualPlDescription")}</p>
         </div>
         <span class="pill">${currency}</span>
       </div>
       <strong class="performance-basis-value ${valueClass(period.profitLoss)}">${formatMoney(period.profitLoss, currency)}</strong>
-      <p class="performance-basis-formula">期末净值 + 取款 − 入金 − 期初净值</p>
+      <p class="performance-basis-formula">${t("periodFormula")}</p>
       <div class="performance-basis-metrics">
-        ${renderPerformanceBasisMetric("期初净值", formatMoney(period.startingValue, currency))}
-        ${renderPerformanceBasisMetric("期末净值", formatMoney(period.endingValue, currency))}
-        ${renderPerformanceBasisMetric("期间入金", formatMoney(period.deposits, currency))}
-        ${renderPerformanceBasisMetric("期间取款", formatMoney(period.withdrawals, currency))}
-        ${renderPerformanceBasisMetric("净现金流", signedMoney(period.netCashFlow, currency), period.netCashFlow)}
-        ${renderPerformanceBasisMetric("时间加权收益", formatPercent(period.timeWeightedReturn), period.timeWeightedReturn)}
+        ${renderPerformanceBasisMetric(t("startingNav"), formatMoney(period.startingValue, currency))}
+        ${renderPerformanceBasisMetric(t("endingNav"), formatMoney(period.endingValue, currency))}
+        ${renderPerformanceBasisMetric(t("periodDeposits"), formatMoney(period.deposits, currency))}
+        ${renderPerformanceBasisMetric(t("periodWithdrawals"), formatMoney(period.withdrawals, currency))}
+        ${renderPerformanceBasisMetric(t("netCashFlow"), signedMoney(period.netCashFlow, currency), period.netCashFlow)}
+        ${renderPerformanceBasisMetric(t("timeWeightedReturn"), formatPercent(period.timeWeightedReturn), period.timeWeightedReturn)}
       </div>
     </section>
     <section class="dashboard-card performance-basis-card span-6">
       <div class="performance-basis-header">
         <div>
-          <span class="performance-basis-eyebrow">成本基础口径</span>
-          <h2>持仓累计盈亏</h2>
-          <p>按持仓买入成本计算已实现与当前未实现盈亏</p>
+          <span class="performance-basis-eyebrow">${t("costBasis")}</span>
+          <h2>${t("costBasisPl")}</h2>
+          <p>${t("costBasisDescription")}</p>
         </div>
         <span class="pill">${currency}</span>
       </div>
       <strong class="performance-basis-value ${valueClass(costBasis.total)}">${formatMoney(costBasis.total, currency)}</strong>
-      <p class="performance-basis-formula">已实现净额 + 当前未实现盈亏</p>
+      <p class="performance-basis-formula">${t("costBasisFormula")}</p>
       <div class="performance-basis-metrics">
-        ${renderPerformanceBasisMetric("已实现净额", formatMoney(costBasis.realized, currency), costBasis.realized)}
-        ${renderPerformanceBasisMetric("当前未实现", formatMoney(costBasis.unrealized, currency), costBasis.unrealized)}
-        ${renderPerformanceBasisMetric("已实现毛利", formatMoney(costBasis.grossRealizedProfit, currency), costBasis.grossRealizedProfit)}
-        ${renderPerformanceBasisMetric("已实现毛损", signedMoney(-costBasis.grossRealizedLoss, currency), -costBasis.grossRealizedLoss)}
-        ${renderPerformanceBasisMetric("盈利 / 亏损比", ratio)}
-        ${renderPerformanceBasisMetric("相对期间口径", signedMoney(basisDifference, currency), basisDifference)}
+        ${renderPerformanceBasisMetric(t("netRealized"), formatMoney(costBasis.realized, currency), costBasis.realized)}
+        ${renderPerformanceBasisMetric(t("currentUnrealized"), formatMoney(costBasis.unrealized, currency), costBasis.unrealized)}
+        ${renderPerformanceBasisMetric(t("grossRealizedProfit"), formatMoney(costBasis.grossRealizedProfit, currency), costBasis.grossRealizedProfit)}
+        ${renderPerformanceBasisMetric(t("grossRealizedLoss"), signedMoney(-costBasis.grossRealizedLoss, currency), -costBasis.grossRealizedLoss)}
+        ${renderPerformanceBasisMetric(t("profitLossRatio"), ratio)}
+        ${renderPerformanceBasisMetric(t("versusPeriodBasis"), signedMoney(basisDifference, currency), basisDifference)}
       </div>
     </section>
     <section class="performance-basis-note span-12">
-      <strong>为什么两个结果不同？</strong>
-      <p>期间口径按期初、期末净值和出入金计算；成本基础口径可能包含期初持仓在报表期前已经形成、但在本期才实现的浮盈。两者回答的问题不同，不应互相替代。</p>
+      <strong>${t("performanceBasisDifferenceTitle")}</strong>
+      <p>${t("performanceBasisDifferenceBody")}</p>
     </section>
   `;
 }
@@ -1323,7 +1375,7 @@ async function readFile(file) {
 
 async function loadSample() {
   try {
-    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.8");
+    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.9");
     if (!response.ok) throw new Error("sample unavailable");
     parseText(await response.text(), "ibkr-sample-demo.csv");
   } catch (error) {
@@ -1525,7 +1577,7 @@ function drawLegacyLandscapeShareImage(ctx, model, theme, logoImage) {
   drawLegacySharePill(ctx, `${model.currency} Base`, pillX, 176, theme, { tone: "brand" });
 
   drawLegacyShareHero(ctx, 60, 222, 440, 176, model, theme, { valueOffsetY: 62, valueScale: 0.92 });
-  drawLegacyShareMetric(ctx, 520, 222, 230, 80, "期间损益", formatMoney(model.totalPl, model.currency), model.totalPl, theme);
+  drawLegacyShareMetric(ctx, 520, 222, 230, 80, t("periodProfit"), formatMoney(model.totalPl, model.currency), model.totalPl, theme);
   drawLegacyShareMetric(ctx, 520, 318, 230, 80, "持仓数", formatNumber(model.positions), model.positions, theme);
   drawLegacyShareAllocation(ctx, 770, 222, 370, 176, model, theme, { compact: true });
   drawLegacyShareMonthlyTrend(ctx, 60, 422, 530, 146, model, theme, { compact: true });
@@ -1549,9 +1601,9 @@ function drawLegacyPortraitShareImage(ctx, model, theme, logoImage) {
   drawLegacySharePill(ctx, model.period, 70, 346, theme, { scale: 1.18 });
 
   drawLegacyShareHero(ctx, 70, 435, 940, 220, model, theme, { scale: 1.28 });
-  drawLegacyShareMetric(ctx, 70, 685, 455, 112, "期间损益", formatMoney(model.totalPl, model.currency), model.totalPl, theme, { scale: 1.12 });
-  drawLegacyShareMetric(ctx, 555, 685, 455, 112, "成本基础·未实现", formatMoney(model.unrealizedPl, model.currency), model.unrealizedPl, theme, { scale: 1.12 });
-  drawLegacyShareMetric(ctx, 70, 820, 455, 112, "成本基础·已实现", formatMoney(model.realizedPl, model.currency), model.realizedPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 70, 685, 455, 112, t("periodProfit"), formatMoney(model.totalPl, model.currency), model.totalPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 555, 685, 455, 112, t("costBasisUnrealized"), formatMoney(model.unrealizedPl, model.currency), model.unrealizedPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 70, 820, 455, 112, t("costBasisRealized"), formatMoney(model.realizedPl, model.currency), model.realizedPl, theme, { scale: 1.12 });
   drawLegacyShareMetric(ctx, 555, 820, 455, 112, "持仓数", formatNumber(model.positions), model.positions, theme, { scale: 1.12 });
   drawLegacyShareAllocation(ctx, 70, 970, 940, 285, model, theme, { scale: 1.18 });
   drawLegacyShareTickerList(ctx, 70, 1295, 940, 350, model, theme, { rowHeight: 50, scale: 1.18 });
