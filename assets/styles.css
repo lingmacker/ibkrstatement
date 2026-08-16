@@ -894,6 +894,116 @@ svg {
   white-space: nowrap;
 }
 
+.performance-basis-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.performance-basis-card.is-period {
+  border-color: rgba(5, 122, 85, 0.28);
+  background: linear-gradient(180deg, var(--positive-soft), var(--surface) 42%);
+}
+
+.performance-basis-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.performance-basis-header h2 {
+  margin-top: 4px;
+  font-size: 17px;
+  line-height: 22px;
+}
+
+.performance-basis-header p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.performance-basis-eyebrow {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.performance-basis-value {
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.05;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.performance-basis-formula {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.performance-basis-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: auto;
+}
+
+.performance-basis-metric {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.performance-basis-metric span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+}
+
+.performance-basis-metric strong {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.performance-basis-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-low);
+}
+
+.performance-basis-note strong {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.performance-basis-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .dashboard-card {
   padding: 18px;
 }
@@ -2011,5 +2121,9 @@ tbody tr:hover {
 
   .share-name-field {
     min-width: 0;
+  }
+  .performance-basis-metrics,
+  .performance-basis-note {
+    grid-template-columns: 1fr;
   }
 }

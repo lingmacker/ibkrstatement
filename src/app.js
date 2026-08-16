@@ -62,7 +62,7 @@ const copy = {
     overviewHeading: "账户总览",
     overviewSubtitle: "从 NAV、现金、持仓与交易数量快速判断账户状态。",
     performanceHeading: "绩效概览",
-    performanceSubtitle: "按报表实际周期汇总已实现、未实现、资产类别和月度净额。",
+    performanceSubtitle: "区分现金流调整后的期间损益与持仓成本基础盈亏。",
     dailyHeading: "每日统计",
     dailySubtitle: "按交易日期查看每日已实现盈亏、交易笔数和成交金额。",
     positionsHeading: "持仓明细",
@@ -79,8 +79,8 @@ const copy = {
     portrait: "竖版",
     downloadPng: "下载 PNG",
     close: "关闭",
-    plDistribution: "盈亏分布",
-    plDistributionKicker: "已实现与未实现盈亏",
+    plDistribution: "成本基础盈亏分布",
+    plDistributionKicker: "按持仓成本计算的已实现与当前未实现盈亏",
     total: "合计",
     realized: "已实现",
     unrealized: "未实现",
@@ -138,7 +138,7 @@ const copy = {
     overviewHeading: "Account Overview",
     overviewSubtitle: "Quickly inspect NAV, cash, positions, and trading activity.",
     performanceHeading: "Performance Overview",
-    performanceSubtitle: "Summarize realized, unrealized, asset class, and monthly net contribution for the statement period.",
+    performanceSubtitle: "Separate cash-flow-adjusted statement-period performance from position cost-basis P/L.",
     dailyHeading: "Daily Stats",
     dailySubtitle: "Review daily realized P/L, trade count, and gross trading value by trade date.",
     positionsHeading: "Positions",
@@ -155,8 +155,8 @@ const copy = {
     portrait: "Portrait",
     downloadPng: "Download PNG",
     close: "Close",
-    plDistribution: "P/L Distribution",
-    plDistributionKicker: "Realized and unrealized P/L",
+    plDistribution: "Cost-basis P/L Distribution",
+    plDistributionKicker: "Realized and current unrealized P/L measured from position cost basis",
     total: "Total",
     realized: "Realized",
     unrealized: "Unrealized",
@@ -469,7 +469,7 @@ function renderActiveTab() {
 
 function renderOverview(data) {
   const currency = data.baseCurrency || "USD";
-  const totalPL = data.plSummary.total.total;
+  const totalPL = data.periodPerformance?.profitLoss ?? data.plSummary.total.total;
   const portfolioAllocation = buildPortfolioAllocation(data);
   return `
     <div class="content-stack">
@@ -477,7 +477,7 @@ function renderOverview(data) {
       <div class="grid-12">
         ${renderKpi("期末净值", formatMoney(data.nav.total, currency), renderDateRange(data), "span-3")}
         ${renderKpi("现金", formatMoney(data.nav.cash, currency), "Net Asset Value / Cash", "span-3")}
-        ${renderKpi("总盈亏", formatMoney(totalPL, currency), "已实现 + 未实现", "span-3", totalPL)}
+        ${renderKpi("期间损益", formatMoney(totalPL, currency), "现金流调整后", "span-3", totalPL)}
         ${renderKpi("时间加权收益", formatPercent(data.nav.rateOfReturn), "IBKR TWR", "span-3", data.nav.rateOfReturn)}
         ${renderKpi("交易订单", formatNumber(data.tradeSummary.orderCount), `${formatNumber(data.tradeSummary.stockOrders)} 股票 / ${formatNumber(data.tradeSummary.forexOrders)} 外汇`, "span-3")}
         ${renderKpi("当前持仓", formatNumber(data.positions.length), `${formatNumber(data.assetAllocation.length)} 个资产类别`, "span-3")}
@@ -508,27 +508,12 @@ function renderOverview(data) {
 
 function renderPerformance(data) {
   const currency = data.baseCurrency || "USD";
-  const pl = data.plSummary.total;
 
   return `
     <div class="content-stack">
       ${renderPageHeading(t("performanceHeading"), data, t("performanceSubtitle"))}
       <div class="grid-12">
-        ${renderKpi("已实现盈亏", formatMoney(pl.realized, currency), "Realized P/L", "span-4 performance-kpi", pl.realized, {
-          label: t("returnRate"),
-          value: `${formatSignedPercent(safePercent(pl.realized, data.nav.total))} / NAV`,
-          toneValue: pl.realized
-        })}
-        ${renderKpi("未实现盈亏", formatMoney(pl.unrealized, currency), "Unrealized P/L", "span-4 performance-kpi", pl.unrealized, {
-          label: t("returnRate"),
-          value: `${formatSignedPercent(safePercent(pl.unrealized, data.nav.total))} / NAV`,
-          toneValue: pl.unrealized
-        })}
-        ${renderKpi("总盈亏", formatMoney(pl.total, currency), "Total P/L", "span-4 is-featured performance-kpi", pl.total, {
-          label: t("returnRate"),
-          value: `${formatSignedPercent(safePercent(pl.total, data.nav.total))} / NAV`,
-          toneValue: pl.total
-        })}
+        ${renderPerformanceDimensions(data, currency)}
         <section class="dashboard-card span-6">
           <div class="card-header">
             <div>
@@ -708,6 +693,72 @@ function renderKpi(label, value, foot, className = "span-3", toneValue = null, s
         ` : ""}
       </div>
     </section>
+  `;
+}
+
+function renderPerformanceDimensions(data, currency) {
+  const period = data.periodPerformance || {};
+  const costBasis = data.plSummary.total;
+  const basisDifference = costBasis.total - (period.profitLoss || 0);
+  const ratio = Number.isFinite(costBasis.realizedProfitLossRatio)
+    ? `${formatNumber(costBasis.realizedProfitLossRatio, 1)} : 1`
+    : "—";
+
+  return `
+    <section class="dashboard-card performance-basis-card is-period span-6">
+      <div class="performance-basis-header">
+        <div>
+          <span class="performance-basis-eyebrow">期间口径</span>
+          <h2>本期实际损益</h2>
+          <p>回答“这段报表期间实际赚了多少”</p>
+        </div>
+        <span class="pill">${currency}</span>
+      </div>
+      <strong class="performance-basis-value ${valueClass(period.profitLoss)}">${formatMoney(period.profitLoss, currency)}</strong>
+      <p class="performance-basis-formula">期末净值 + 取款 − 入金 − 期初净值</p>
+      <div class="performance-basis-metrics">
+        ${renderPerformanceBasisMetric("期初净值", formatMoney(period.startingValue, currency))}
+        ${renderPerformanceBasisMetric("期末净值", formatMoney(period.endingValue, currency))}
+        ${renderPerformanceBasisMetric("期间入金", formatMoney(period.deposits, currency))}
+        ${renderPerformanceBasisMetric("期间取款", formatMoney(period.withdrawals, currency))}
+        ${renderPerformanceBasisMetric("净现金流", signedMoney(period.netCashFlow, currency), period.netCashFlow)}
+        ${renderPerformanceBasisMetric("时间加权收益", formatPercent(period.timeWeightedReturn), period.timeWeightedReturn)}
+      </div>
+    </section>
+    <section class="dashboard-card performance-basis-card span-6">
+      <div class="performance-basis-header">
+        <div>
+          <span class="performance-basis-eyebrow">成本基础口径</span>
+          <h2>持仓累计盈亏</h2>
+          <p>按持仓买入成本计算已实现与当前未实现盈亏</p>
+        </div>
+        <span class="pill">${currency}</span>
+      </div>
+      <strong class="performance-basis-value ${valueClass(costBasis.total)}">${formatMoney(costBasis.total, currency)}</strong>
+      <p class="performance-basis-formula">已实现净额 + 当前未实现盈亏</p>
+      <div class="performance-basis-metrics">
+        ${renderPerformanceBasisMetric("已实现净额", formatMoney(costBasis.realized, currency), costBasis.realized)}
+        ${renderPerformanceBasisMetric("当前未实现", formatMoney(costBasis.unrealized, currency), costBasis.unrealized)}
+        ${renderPerformanceBasisMetric("已实现毛利", formatMoney(costBasis.grossRealizedProfit, currency), costBasis.grossRealizedProfit)}
+        ${renderPerformanceBasisMetric("已实现毛损", signedMoney(-costBasis.grossRealizedLoss, currency), -costBasis.grossRealizedLoss)}
+        ${renderPerformanceBasisMetric("盈利 / 亏损比", ratio)}
+        ${renderPerformanceBasisMetric("相对期间口径", signedMoney(basisDifference, currency), basisDifference)}
+      </div>
+    </section>
+    <section class="performance-basis-note span-12">
+      <strong>为什么两个结果不同？</strong>
+      <p>期间口径按期初、期末净值和出入金计算；成本基础口径可能包含期初持仓在报表期前已经形成、但在本期才实现的浮盈。两者回答的问题不同，不应互相替代。</p>
+    </section>
+  `;
+}
+
+function renderPerformanceBasisMetric(label, value, toneValue = null) {
+  const toneClass = Number.isFinite(toneValue) && toneValue !== 0 ? ` ${valueClass(toneValue)}` : "";
+  return `
+    <div class="performance-basis-metric">
+      <span>${escapeHtml(label)}</span>
+      <strong class="${toneClass.trim()}">${escapeHtml(value)}</strong>
+    </div>
   `;
 }
 
@@ -1428,7 +1479,8 @@ function legacyShareTheme() {
 }
 
 function buildLegacyShareModel(data) {
-  const totalPl = data.plSummary.total;
+  const costBasisPl = data.plSummary.total;
+  const totalPl = data.periodPerformance?.profitLoss ?? costBasisPl.total;
   const customName = state.shareName.trim();
   return {
     name: state.shareHideName ? "*****" : (customName || data.accountInfo.name || "账户视图"),
@@ -1443,9 +1495,9 @@ function buildLegacyShareModel(data) {
     }).format(new Date()),
     nav: data.nav.total,
     cash: data.nav.cash,
-    totalPl: totalPl.total,
-    realizedPl: totalPl.realized,
-    unrealizedPl: totalPl.unrealized,
+    totalPl,
+    realizedPl: costBasisPl.realized,
+    unrealizedPl: costBasisPl.unrealized,
     twr: data.nav.rateOfReturn,
     positions: data.positions.length,
     sections: Object.keys(data.sectionStats).length,
@@ -1473,7 +1525,7 @@ function drawLegacyLandscapeShareImage(ctx, model, theme, logoImage) {
   drawLegacySharePill(ctx, `${model.currency} Base`, pillX, 176, theme, { tone: "brand" });
 
   drawLegacyShareHero(ctx, 60, 222, 440, 176, model, theme, { valueOffsetY: 62, valueScale: 0.92 });
-  drawLegacyShareMetric(ctx, 520, 222, 230, 80, "总盈亏", formatMoney(model.totalPl, model.currency), model.totalPl, theme);
+  drawLegacyShareMetric(ctx, 520, 222, 230, 80, "期间损益", formatMoney(model.totalPl, model.currency), model.totalPl, theme);
   drawLegacyShareMetric(ctx, 520, 318, 230, 80, "持仓数", formatNumber(model.positions), model.positions, theme);
   drawLegacyShareAllocation(ctx, 770, 222, 370, 176, model, theme, { compact: true });
   drawLegacyShareMonthlyTrend(ctx, 60, 422, 530, 146, model, theme, { compact: true });
@@ -1497,9 +1549,9 @@ function drawLegacyPortraitShareImage(ctx, model, theme, logoImage) {
   drawLegacySharePill(ctx, model.period, 70, 346, theme, { scale: 1.18 });
 
   drawLegacyShareHero(ctx, 70, 435, 940, 220, model, theme, { scale: 1.28 });
-  drawLegacyShareMetric(ctx, 70, 685, 455, 112, "总盈亏", formatMoney(model.totalPl, model.currency), model.totalPl, theme, { scale: 1.12 });
-  drawLegacyShareMetric(ctx, 555, 685, 455, 112, "未实现盈亏", formatMoney(model.unrealizedPl, model.currency), model.unrealizedPl, theme, { scale: 1.12 });
-  drawLegacyShareMetric(ctx, 70, 820, 455, 112, "已实现盈亏", formatMoney(model.realizedPl, model.currency), model.realizedPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 70, 685, 455, 112, "期间损益", formatMoney(model.totalPl, model.currency), model.totalPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 555, 685, 455, 112, "成本基础·未实现", formatMoney(model.unrealizedPl, model.currency), model.unrealizedPl, theme, { scale: 1.12 });
+  drawLegacyShareMetric(ctx, 70, 820, 455, 112, "成本基础·已实现", formatMoney(model.realizedPl, model.currency), model.realizedPl, theme, { scale: 1.12 });
   drawLegacyShareMetric(ctx, 555, 820, 455, 112, "持仓数", formatNumber(model.positions), model.positions, theme, { scale: 1.12 });
   drawLegacyShareAllocation(ctx, 70, 970, 940, 285, model, theme, { scale: 1.18 });
   drawLegacyShareTickerList(ctx, 70, 1295, 940, 350, model, theme, { rowHeight: 50, scale: 1.18 });
